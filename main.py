@@ -62,21 +62,15 @@ def get_imdb_poster_urls(imdb_url):
         soup = BeautifulSoup(resp.text, 'html.parser')
         poster_div = soup.find("div", class_=lambda x: x and "ipc-poster__poster-image" in x)
         if not poster_div:
-            print(f"No poster found at {imdb_url}")
             return None
         img_tag = poster_div.find("img")
         if not img_tag or not img_tag.get("src"):
-            print(f"No poster image found at {imdb_url}")
             return None
         image_url = img_tag["src"]
         # Generate UY1000 URL (height 1000px)
         url_uy1000 = re.sub(r'\._V1_.*?\.jpg', '._V1_UY1000.jpg', image_url)
-        
-        print(f"Poster URL (1000px height): {url_uy1000}")
-        
         return url_uy1000
     except Exception as e:
-        print(f"Failed to fetch poster URL from {imdb_url}: {e}")
         return None
 
 def process_imdb_data_and_extract_poster_urls(tsv_path, limit=10):
@@ -95,30 +89,23 @@ def process_imdb_data_and_extract_poster_urls(tsv_path, limit=10):
                 
             title_type = row.get('titleType', '')
             tconst = row.get('tconst', '')
-            primary_title = row.get('primaryTitle', '')
-            start_year = row.get('startYear', '')
             
             # Filter for movies and TV series only
             if title_type in ['movie', 'tvSeries']:
                 count += 1
-                print(f"\n{count}. Processing: {primary_title} ({start_year}) - {title_type}")
-                print(f"   IMDB ID: {tconst}")
                 
                 # Construct IMDB URL
                 imdb_url = f"https://www.imdb.com/title/{tconst}/"
-                print(f"   URL: {imdb_url}")
                 
                 # Get poster URL
                 poster_url = get_imdb_poster_urls(imdb_url)
                 if poster_url:
                     successful_extractions += 1
-                    print(f"   ✓ Successfully extracted poster URL")
+                    print(f"Processing {count} of {limit}: {tconst}, {poster_url}")
                 else:
-                    print(f"   ✗ Failed to extract poster URL")
+                    print(f"Processing {count} of {limit}: {tconst}, No poster found")
     
-    print(f"\n=== Summary ===")
-    print(f"Processed {count} titles")
-    print(f"Successfully extracted URLs for {successful_extractions} posters")
+    print(f"\nSummary: {successful_extractions}/{count} posters found")
 
 if __name__ == "__main__":
     # Download and extract the IMDB dataset
