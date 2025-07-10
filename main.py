@@ -73,39 +73,54 @@ def get_imdb_poster_urls(imdb_url):
     except Exception as e:
         return None
 
-def process_imdb_data_and_extract_poster_urls(tsv_path, limit=10):
+def process_imdb_data_and_extract_poster_urls(tsv_path, limit=10, output_csv='poster_urls.csv'):
     """Process the IMDB TSV file and extract poster URLs (1000px height) for movies and TV series"""
     print(f"Processing IMDB data from {tsv_path}...")
+    print(f"Writing results to {output_csv}...")
     
     count = 0
     successful_extractions = 0
     
-    with open(tsv_path, 'r', encoding='utf-8') as file:
-        reader = csv.DictReader(file, delimiter='\t')
+    # Open CSV file for writing
+    with open(output_csv, 'w', newline='', encoding='utf-8') as csvfile:
+        fieldnames = ['imdb_id', 'poster_url']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
         
-        for row in reader:
-            if count >= limit:
-                break
-                
-            title_type = row.get('titleType', '')
-            tconst = row.get('tconst', '')
+        with open(tsv_path, 'r', encoding='utf-8') as file:
+            reader = csv.DictReader(file, delimiter='\t')
             
-            # Filter for movies and TV series only
-            if title_type in ['movie', 'tvSeries']:
-                count += 1
+            for row in reader:
+                if count >= limit:
+                    break
+                    
+                title_type = row.get('titleType', '')
+                tconst = row.get('tconst', '')
                 
-                # Construct IMDB URL
-                imdb_url = f"https://www.imdb.com/title/{tconst}/"
-                
-                # Get poster URL
-                poster_url = get_imdb_poster_urls(imdb_url)
-                if poster_url:
-                    successful_extractions += 1
-                    print(f"Processing {count} of {limit}: {tconst}, {poster_url}")
-                else:
-                    print(f"Processing {count} of {limit}: {tconst}, No poster found")
+                # Filter for movies and TV series only
+                if title_type in ['movie', 'tvSeries']:
+                    count += 1
+                    
+                    # Construct IMDB URL
+                    imdb_url = f"https://www.imdb.com/title/{tconst}/"
+                    
+                    # Get poster URL
+                    poster_url = get_imdb_poster_urls(imdb_url)
+                    if poster_url:
+                        successful_extractions += 1
+                        print(f"Processing {count} of {limit}: {tconst}, {poster_url}")
+                        # Write to CSV
+                        writer.writerow({'imdb_id': tconst, 'poster_url': poster_url})
+                    else:
+                        print(f"Processing {count} of {limit}: {tconst}, No poster found")
+                        # Write to CSV with None for poster_url
+                        writer.writerow({'imdb_id': tconst, 'poster_url': 'None'})
+                    
+                    # Flush the file to ensure data is written immediately
+                    csvfile.flush()
     
     print(f"\nSummary: {successful_extractions}/{count} posters found")
+    print(f"Results saved to {output_csv}")
 
 if __name__ == "__main__":
     # Download and extract the IMDB dataset
