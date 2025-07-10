@@ -7,6 +7,8 @@ import csv
 import re
 from tqdm import tqdm
 from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor
+import time
 
 def download_title_basics(data_dir='data'):
     os.makedirs(data_dir, exist_ok=True)
@@ -57,7 +59,7 @@ def get_imdb_poster_urls(imdb_url):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     try:
-        resp = requests.get(imdb_url, headers=headers)
+        resp = requests.get(imdb_url, headers=headers, timeout=10)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
         poster_div = soup.find("div", class_=lambda x: x and "ipc-poster__poster-image" in x)
@@ -72,6 +74,27 @@ def get_imdb_poster_urls(imdb_url):
         return url_uy1000
     except Exception as e:
         return None
+
+def process_single_title(args):
+    """Process a single title and return the result"""
+    row, index, total = args
+    tconst = row.get('tconst', '')
+    
+    # Construct IMDB URL
+    imdb_url = f"https://www.imdb.com/title/{tconst}/"
+    
+    # Get poster URL
+    poster_url = get_imdb_poster_urls(imdb_url)
+    
+    # Small delay to be respectful to IMDB's servers
+    time.sleep(0.1)
+    
+    return {
+        'index': index,
+        'tconst': tconst,
+        'poster_url': poster_url,
+        'total': total
+    }
 
 def process_imdb_data_and_extract_poster_urls(tsv_path, limit=None, output_csv='poster_urls.csv'):
     """Process the IMDB TSV file and extract poster URLs (1000px height) for movies and TV series"""
@@ -101,8 +124,8 @@ def process_imdb_data_and_extract_poster_urls(tsv_path, limit=None, output_csv='
         movie_tv_rows = movie_tv_rows[:limit]
     
     print(f"Found {len(movie_tv_rows)} movies and TV series to process")
+    print("Starting concurrent processing (3 threads)...")
     
-    count = 0
     successful_extractions = 0
     
     # Open CSV file for writing
@@ -111,29 +134,31 @@ def process_imdb_data_and_extract_poster_urls(tsv_path, limit=None, output_csv='
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         
-        for row in movie_tv_rows:
-            count += 1
-            tconst = row.get('tconst', '')
-            
-            # Construct IMDB URL
-            imdb_url = f"https://www.imdb.com/title/{tconst}/"
-            
-            # Get poster URL
-            poster_url = get_imdb_poster_urls(imdb_url)
-            if poster_url:
-                successful_extractions += 1
-                print(f"Processing {count} of {total_to_process}: {tconst}, {poster_url}")
-                # Write to CSV
-                writer.writerow({'imdb_id': tconst, 'poster_url': poster_url})
-            else:
-                print(f"Processing {count} of {total_to_process}: {tconst}, No poster found")
-                # Write to CSV with None for poster_url
-                writer.writerow({'imdb_id': tconst, 'poster_url': 'None'})
-            
-            # Flush the file to ensure data is written immediately
-            csvfile.flush()
+        # Prepare arguments for concurrent processing
+        args_list = [(row, i+1, total_to_process) for i, row in enumerate(movie_tv_rows)]
+        
+        # Use ThreadPoolExecutor for concurrent processing
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            # Process with progress bar
+            for result in tqdm(executor.map(process_single_title, args_list), 
+                             total=len(args_list), 
+                             desc="Processing titles", 
+                             unit='titles'):
+                
+                if result['poster_url']:
+                    successful_extractions += 1
+                    print(f"Processing {result['index']} of {result['total']}: {result['tconst']}, {result['poster_url']}")
+                    # Write to CSV
+                    writer.writerow({'imdb_id': result['tconst'], 'poster_url': result['poster_url']})
+                else:
+                    print(f"Processing {result['index']} of {result['total']}: {result['tconst']}, No poster found")
+                    # Write to CSV with None for poster_url
+                    writer.writerow({'imdb_id': result['tconst'], 'poster_url': 'None'})
+                
+                # Flush the file to ensure data is written immediately
+                csvfile.flush()
     
-    print(f"\nSummary: {successful_extractions}/{count} posters found")
+    print(f"\nSummary: {successful_extractions}/{len(movie_tv_rows)} posters found")
     print(f"Results saved to {output_csv}")
 
 if __name__ == "__main__":
