@@ -52,7 +52,7 @@ def download_title_basics(data_dir='data'):
     return tsv_path
 
 def get_imdb_poster_urls(imdb_url):
-    """Extract poster URLs from IMDB page without downloading"""
+    """Extract poster URL with height 1000px from IMDB page"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
@@ -69,31 +69,18 @@ def get_imdb_poster_urls(imdb_url):
             print(f"No poster image found at {imdb_url}")
             return None
         image_url = img_tag["src"]
-        # Generate different resolution URLs
+        # Generate UY1000 URL (height 1000px)
         url_uy1000 = re.sub(r'\._V1_.*?\.jpg', '._V1_UY1000.jpg', image_url)
-        url_ux1000 = re.sub(r'\._V1_.*?\.jpg', '._V1_UX1000.jpg', image_url)
-        url_full = re.sub(r'\._V1_.*?\.jpg', '._V1_.jpg', image_url)
         
-        poster_urls = {
-            'original': image_url,
-            'uy1000': url_uy1000,
-            'ux1000': url_ux1000,
-            'full': url_full
-        }
+        print(f"Poster URL (1000px height): {url_uy1000}")
         
-        print(f"Poster image URLs:")
-        print(f"  Original: {image_url}")
-        print(f"  UY1000:   {url_uy1000}")
-        print(f"  UX1000:   {url_ux1000}")
-        print(f"  Full:     {url_full}")
-        
-        return poster_urls
+        return url_uy1000
     except Exception as e:
-        print(f"Failed to fetch poster URLs from {imdb_url}: {e}")
+        print(f"Failed to fetch poster URL from {imdb_url}: {e}")
         return None
 
 def process_imdb_data_and_extract_poster_urls(tsv_path, limit=10):
-    """Process the IMDB TSV file and extract poster URLs for movies and TV series"""
+    """Process the IMDB TSV file and extract poster URLs (1000px height) for movies and TV series"""
     print(f"Processing IMDB data from {tsv_path}...")
     
     count = 0
@@ -121,13 +108,13 @@ def process_imdb_data_and_extract_poster_urls(tsv_path, limit=10):
                 imdb_url = f"https://www.imdb.com/title/{tconst}/"
                 print(f"   URL: {imdb_url}")
                 
-                # Get poster URLs
-                poster_urls = get_imdb_poster_urls(imdb_url)
-                if poster_urls:
+                # Get poster URL
+                poster_url = get_imdb_poster_urls(imdb_url)
+                if poster_url:
                     successful_extractions += 1
-                    print(f"   ✓ Successfully extracted poster URLs")
+                    print(f"   ✓ Successfully extracted poster URL")
                 else:
-                    print(f"   ✗ Failed to extract poster URLs")
+                    print(f"   ✗ Failed to extract poster URL")
     
     print(f"\n=== Summary ===")
     print(f"Processed {count} titles")
